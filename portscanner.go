@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,14 +13,29 @@ import (
 	"time"
 )
 
+func worker(ports <-chan int, results chan<- int, hostName string, timeout time.Duration, wg *sync.WaitGroup) {
+	// each counter call Done() when it finishes -- each Done() decrements the counter by 1
+	defer wg.Done() // defer is a function only called at the end of the function, even tho it appears first
+	for port := range ports {
+		addr := fmt.Sprintf("%s:%d", strings.TrimSpace(hostName), port)
+		conn, err := net.DialTimeout("tcp", addr, timeout)
+		if err == nil {
+			conn.Close()
+			results <- port
+		} else {
+			results <- 0
+		}
+	}
+}
+
 func main() {
-
-	ports := make(chan int, 100) //
-	results := make(chan int)
-
+	workerCount := runtime.NumCPU() * 20 // Number of logical CPU cores * 20
+	ports := make(chan int, 100)         //capacity = 100
+	results := make(chan int, workerCount)
 	var openPorts []int
-	reader := bufio.NewReader(os.Stdin) //
+	var wg sync.WaitGroup // counter waiting for all the workers to finish
 
+	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Host: ")
 	hostName, _ := reader.ReadString('\n')
 	hostName = strings.TrimSpace(hostName)
@@ -27,7 +43,7 @@ func main() {
 	fmt.Print("\nFirst port: ")
 	// fmt.Scanf("%d", &firstPort) // scanf needs a pointer so it can write the parsed value to the variable
 	line, _ := reader.ReadString('\n')
-	firstPort, _ := strconv.Atoi(strings.TrimSpace(line)) //
+	firstPort, _ := strconv.Atoi(strings.TrimSpace(line))
 
 	fmt.Printf("\nLast port: ")
 	//fmt.Scanf("%d", &lastPort)
@@ -37,24 +53,11 @@ func main() {
 		lastPort = firstPort + 1024
 	}
 
-	var wg sync.WaitGroup
-	var workerCount int = 50
-	wg.Add(workerCount)
+	wg.Add(workerCount) // tell the counter how many goroutines we will have
 	for i := 0; i < workerCount; i++ {
-		go func() {
-			defer wg.Done()
-			for port := range ports {
-				addr := fmt.Sprintf("%s:%d", hostName, port)
-				conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
-				if err == nil {
-					conn.Close()
-					results <- port
-				} else {
-					results <- 0
-				}
-			}
-		}()
+		go worker(ports, results, hostName, 400*time.Millisecond, &wg)
 	}
+
 	// send ports to workers
 	go func() {
 		for port := firstPort; port <= lastPort; port++ {
@@ -65,8 +68,8 @@ func main() {
 
 	// collector goroutine so we can close the results channel when all the workers are done
 	go func() {
-		wg.Wait() // blocks until the counter returns to zero (all the workers to finish, call Done())
-		close(results)
+		wg.Wait()      // blocks until the counter returns to zero (all the workers to finish, call Done())
+		close(results) // closes the channel for sending -- not for receiving
 	}()
 
 	for result := range results {
@@ -76,7 +79,9 @@ func main() {
 	}
 
 	sort.Ints(openPorts)
-	fmt.Printf("\n+++ Scanning has been done!\n______________\n")
+	fmt.Println("\n+++ Scanning has been done!")
+	fmt.Println("__________________")
+	fmt.Println("+++ Open ports:")
 	if len(openPorts) == 0 {
 		fmt.Println("No open ports found")
 	} else {
