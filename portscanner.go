@@ -8,83 +8,80 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-func worker(ports, results chan int, hostName string) {
-	for port := range ports {
-		var address string = hostName + ":" + strconv.Itoa(port)
-		conn, err := net.Dial /*Timeout*/ ("tcp", address /*, 2*time.Second*/)
-		if err != nil {
-			results <- 0
-			continue
-		}
-		conn.Close()
-		results <- port
-	}
-}
-
 func main() {
 
-	ports := make(chan int, 150)
+	ports := make(chan int, 100) //
 	results := make(chan int)
 
 	var openPorts []int
-
 	reader := bufio.NewReader(os.Stdin) //
-	fmt.Print("Enter a hostname to scan: ")
-	hostName, _ := reader.ReadString('\n')
-	hostName = strings.Trim(hostName, "\n")
 
-	var firstPort, lastPort int
-	firstPort = 0
-	lastPort = 0
-	fmt.Printf("\nEnter the first port to scan from: ")
-	fmt.Scanf("%d", &firstPort) // scanf needs a pointer so it can write the parsed value to the variable
-	fmt.Printf("\nEnter the last port to scan to: ")
-	fmt.Scanf("%d", &lastPort) //
-	if firstPort == 0 {
-		firstPort = 1
-	}
-	if lastPort == 0 {
-		lastPort = 1024 // default
-	}
-	if lastPort < firstPort {
+	fmt.Print("Host: ")
+	hostName, _ := reader.ReadString('\n')
+	hostName = strings.TrimSpace(hostName)
+
+	fmt.Print("\nFirst port: ")
+	// fmt.Scanf("%d", &firstPort) // scanf needs a pointer so it can write the parsed value to the variable
+	line, _ := reader.ReadString('\n')
+	firstPort, _ := strconv.Atoi(strings.TrimSpace(line)) //
+
+	fmt.Printf("\nLast port: ")
+	//fmt.Scanf("%d", &lastPort)
+	line, _ = reader.ReadString('\n')
+	lastPort, _ := strconv.Atoi(strings.TrimSpace(line))
+	if lastPort == 0 || lastPort < firstPort { // default value
 		lastPort = firstPort + 1024
 	}
 
-	var portNum int = lastPort - firstPort
-	fmt.Printf("\n+++ Port scanning started for %v from port %v to %v", hostName, firstPort, lastPort)
-
-	for i := 0; i < cap(ports); i++ {
-		go worker(ports, results, hostName)
+	var wg sync.WaitGroup
+	var workerCount int = 50
+	wg.Add(workerCount)
+	for i := 0; i < workerCount; i++ {
+		go func() {
+			defer wg.Done()
+			for port := range ports {
+				addr := fmt.Sprintf("%s:%d", hostName, port)
+				conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+				if err == nil {
+					conn.Close()
+					results <- port
+				} else {
+					results <- 0
+				}
+			}
+		}()
 	}
-
-	go func() { //
-		for i := firstPort; i <= lastPort; i++ {
-			ports <- i
+	// send ports to workers
+	go func() {
+		for port := firstPort; port <= lastPort; port++ {
+			ports <- port
 		}
+		close(ports) // signals that all the ports have been sent
 	}()
 
-	for i := 0; i < portNum; i++ {
-		port := <-results
-		if port != 0 {
-			openPorts = append(openPorts, port)
+	// collector goroutine so we can close the results channel when all the workers are done
+	go func() {
+		wg.Wait() // blocks until the counter returns to zero (all the workers to finish, call Done())
+		close(results)
+	}()
+
+	for result := range results {
+		if result != 0 {
+			openPorts = append(openPorts, result)
 		}
 	}
-	time.Sleep(3 * time.Second)
 
-	close(ports)
-	close(results)
 	sort.Ints(openPorts)
 	fmt.Printf("\n+++ Scanning has been done!\n______________\n")
-
-	for _, port := range openPorts {
-		if len(openPorts) == 0 {
-			fmt.Print("No ports open for %v from port %v to %v", hostName, firstPort, lastPort)
-		} else {
+	if len(openPorts) == 0 {
+		fmt.Println("No open ports found")
+	} else {
+		for _, port := range openPorts {
 			fmt.Printf("Port number %v is open\n", port)
 		}
 	}
-
 }
