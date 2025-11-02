@@ -81,7 +81,7 @@ func main() {
 	sort.Ints(openPorts)
 	fmt.Println("\n+++ Scanning has been done!")
 	fmt.Println("__________________")
-	fmt.Println("\n+++ Open ports:")
+	//fmt.Println("\n+++ Open ports:")
 	fmt.Println("")
 	if len(openPorts) == 0 {
 		fmt.Println("No open ports found")
@@ -90,10 +90,11 @@ func main() {
 		if len(openPorts) == 1 {
 			//fmt.Println("One open port: ")
 			for _, port := range openPorts {
-				fmt.Printf("Port number %v is open\n", port)
+				fmt.Printf("\nPort number %v is open\n", port)
 			}
 		} else {
 			fmt.Printf("%d open ports: \n", len(openPorts))
+			fmt.Println("")
 			for _, port := range openPorts {
 				fmt.Printf("Port number %v is open\n", port)
 			}
