@@ -36,7 +36,7 @@ func main() {
 	var wg sync.WaitGroup // counter waiting for all the workers to finish
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Host: ")
+	fmt.Print("\nHost: ")
 	hostName, _ := reader.ReadString('\n')
 	hostName = strings.TrimSpace(hostName)
 
@@ -81,12 +81,22 @@ func main() {
 	sort.Ints(openPorts)
 	fmt.Println("\n+++ Scanning has been done!")
 	fmt.Println("__________________")
-	fmt.Println("+++ Open ports:")
+	fmt.Println("\n+++ Open ports:")
+	fmt.Println("")
 	if len(openPorts) == 0 {
 		fmt.Println("No open ports found")
 	} else {
-		for _, port := range openPorts {
-			fmt.Printf("Port number %v is open\n", port)
+		fmt.Printf("Done!! %d ports, from :%d to :%d were scanned.\n", (lastPort - firstPort), firstPort, lastPort)
+		if len(openPorts) == 1 {
+			//fmt.Println("One open port: ")
+			for _, port := range openPorts {
+				fmt.Printf("Port number %v is open\n", port)
+			}
+		} else {
+			fmt.Printf("%d open ports: \n", len(openPorts))
+			for _, port := range openPorts {
+				fmt.Printf("Port number %v is open\n", port)
+			}
 		}
 	}
 }
