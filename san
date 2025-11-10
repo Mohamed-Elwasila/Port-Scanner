@@ -1,0 +1,13 @@
+ weNnxL8F7gVuJMG
+
+for aws: ssh ec2-user@3.94.158.76 -i ~/.ssh/myamzc0un7.pem
+
+REMOVE A DIR:
+-> rm -r DirectoryName
+
+
+folder shortcut: 
+
+-> echo "alias name='cd /folder/path'" >> ~/.bashrc
+-> source ~/.bashrc
+
